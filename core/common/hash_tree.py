@@ -7,6 +7,17 @@ from pathlib import Path
 from typing import Callable, ClassVar, Union
 
 
+class CheckMode(Enum):
+    """
+    This enum is used to identify hash mode.
+    - FAST: hash the structure of target_dir.
+    - STRICT: hash the structure of target_dir and the detailed file content.
+    """
+
+    FAST = "fast"
+    STRICT = "strict"
+
+
 class EntryType(Enum):
     file: bytes = b"file"
     directory: bytes = b"directory"

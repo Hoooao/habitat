@@ -2,27 +2,15 @@
 # Licensed under the Apache License Version 2.0 that can be found in the
 # LICENSE file in the root directory of this source tree.
 import logging
-from enum import Enum
 from pathlib import Path
 
 from core.common.file_stamp import FileStamp
-from core.common.hash_tree import HashTree
+from core.common.hash_tree import CheckMode, HashTree
 from core.components.component import Component
 from core.config_storage import ConfigStorage
 from core.fetchers.http_fetcher import HttpFetcher
 from core.settings import USER_CONFIG_STORAGE_PATH
 from core.utils import is_http_url
-
-
-class CheckMode(Enum):
-    """
-    This enum is used to identify HttpDependency.up_to_date() check mode.
-    - FAST: hash the structure of target_dir.
-    - STRICT: hash the structure of target_dir and the detailed file content.
-    """
-
-    FAST = "fast"
-    STRICT = "strict"
 
 
 class HttpDependency(Component):
