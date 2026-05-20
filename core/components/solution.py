@@ -261,11 +261,9 @@ class Solution(DependencyGroup):
         # if target is specified and --target-only is set, skip base deps.
         skip_base_deps = target_only and not targets == [None] and self.parent is None
         for target in targets:
-            deps = (
-                merge_deps(deps, eval_deps(deps_file_path, target, root_dir))
-                if not skip_base_deps
-                else {}
-            )
+            if not skip_base_deps:
+                deps = merge_deps(deps, eval_deps(deps_file_path, target, root_dir))
+
             if (
                 hasattr(self, "target_deps_files")
                 and target

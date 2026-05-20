@@ -315,12 +315,14 @@ def test_sync_target_only(tmp_path):
     subprocess.check_call(["git", "init", "test-repo", "--initial-branch=master"])
     subprocess.check_call(["git", "init", "base-deps", "--initial-branch=master"])
     subprocess.check_call(["git", "init", "android-deps", "--initial-branch=master"])
+    subprocess.check_call(["git", "init", "ios-deps", "--initial-branch=master"])
     solutions = [
         {
             "name": ".",
             "deps_file": "DEPS",
             "target_deps_files": {
                 "android": "DEPS.android",
+                "ios": "DEPS.ios",
             },
             "url": f"file://{cwd}/test-repo/.git",
             "branch": "master",
@@ -337,6 +339,13 @@ def test_sync_target_only(tmp_path):
         "android": {
             "type": "git",
             "url": f"file://{cwd}/android-deps/.git",
+            "branch": "master",
+        }
+    }
+    ios_deps = {
+        "ios": {
+            "type": "git",
+            "url": f"file://{cwd}/ios-deps/.git",
             "branch": "master",
         }
     }
@@ -362,17 +371,28 @@ def test_sync_target_only(tmp_path):
         "w",
     )
     make_change_in_repo(
+        f"{cwd}/test-repo",
+        "DEPS.ios",
+        generate_habitat_config_file("deps", ios_deps),
+        "add ios deps",
+        "w",
+    )
+    make_change_in_repo(
         f"{cwd}/base-deps", "base.txt", "i am base deps", "add deps", "w"
     )
     make_change_in_repo(
         f"{cwd}/android-deps", "android.txt", "i am android deps", "add deps", "w"
     )
+    make_change_in_repo(
+        f"{cwd}/ios-deps", "ios.txt", "i am ios deps", "add deps", "w"
+    )
     run_with_custom_argv(
         main,
-        ["hab", "sync", f"{cwd}/test-repo", "--target", "android", "--target-only"],
+        ["hab", "sync", f"{cwd}/test-repo", "--target", "android,ios", "--target-only"],
     )
     assert not os.path.exists(f"{cwd}/test-repo/base")
     assert os.path.exists(f"{cwd}/test-repo/android/android.txt")
+    assert os.path.exists(f"{cwd}/test-repo/ios/ios.txt")
 
     run_with_custom_argv(main, ["hab", "sync", f"{cwd}/test-repo", "--target-only"])
     assert os.path.exists(f"{cwd}/test-repo/base")
