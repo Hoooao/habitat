@@ -8,7 +8,7 @@ from typing import Union
 
 from core.components.component import Component
 from core.fetchers.git_fetcher import GitFetcher
-from core.utils import get_patch_series, is_git_sha, is_git_url, is_repo_patched, is_repo_unchanged
+from core.utils import get_patch_series, is_git_sha, is_git_url, is_repo_patched, is_repo_unchanged, to_thread
 
 
 class GitDependency(Component):
@@ -43,7 +43,7 @@ class GitDependency(Component):
         super(GitDependency, self).__init__(*args, **kwargs)
         self.fetcher = GitFetcher(self)
 
-    def up_to_date(self):
+    async def up_to_date(self):
         target_dir = Path(self.target_dir)
         if not target_dir.exists():
             return False
@@ -54,15 +54,15 @@ class GitDependency(Component):
 
         patches = getattr(self, "patches", None)
         if not patches:
-            should_skip = is_repo_unchanged(target_commit, target_dir)
+            should_skip = await to_thread(is_repo_unchanged, target_commit, target_dir)
         elif isinstance(patches, str):
             patch_series = get_patch_series(patches)
-            should_skip = is_repo_patched(target_commit, patch_series, target_dir)
+            should_skip = await to_thread(is_repo_patched, target_commit, patch_series, target_dir)
         elif isinstance(patches, list):
             patch_series = []
             for p in patches:
                 patch_series.extend(get_patch_series(p))
-            should_skip = is_repo_patched(target_commit, patch_series, target_dir)
+            should_skip = await to_thread(is_repo_patched, target_commit, patch_series, target_dir)
 
         if should_skip:
             logging.info(f"Skip {self.name} because it is already up to date")

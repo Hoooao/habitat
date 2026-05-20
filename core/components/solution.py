@@ -292,8 +292,8 @@ class Solution(DependencyGroup):
         ).hexdigest()
         store_entries_cache_to_git(deps_cache, root_dir=root_dir)
 
-    def up_to_date(self):
-        return is_git_sha(getattr(self, "commit", "")) and super().up_to_date()
+    async def up_to_date(self):
+        return is_git_sha(getattr(self, "commit", "")) and await super().up_to_date()
 
     async def fetch(
         self, root_dir, options, existing_sources=None, existing_targets=None

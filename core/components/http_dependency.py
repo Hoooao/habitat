@@ -63,14 +63,14 @@ class HttpDependency(Component):
 
         stamp.write(fast_digest, full_digest)
 
-    def up_to_date(self):
+    async def up_to_date(self):
         target_dir = Path(self.target_dir)
         if not target_dir.exists():
             return False
 
         stamp = self.__create_file_stamp(self.type, self.name, target_dir)
         if not stamp.exists():
-            logging.debug(f"File stamp does not exist: {stamp.stamp_path}")
+            logging.debug(f"{self.name} file stamp does not exist: {stamp.stamp_path}")
             return False
 
         stamp_info = stamp.read()
@@ -78,16 +78,16 @@ class HttpDependency(Component):
         # stamp version mismatched
         if stamp_version != FileStamp.version:
             logging.debug(
-                f"File stamp's version does not match: expected {FileStamp.version} but got {stamp_version}"
+                f"{self.name} file stamp's version does not match: expected {FileStamp.version} but got {stamp_version}"
             )
             return False
 
         tree = HashTree()
         stamp_fast_digest = stamp_info.get("fast_digest", None)
-        fast_digest = tree.get_hex_digest(target_dir, full_hash=False)
+        fast_digest = await tree.async_get_hex_digest(target_dir, full_hash=False)
         if fast_digest != stamp_fast_digest:
             logging.debug(
-                f"digest does not match: expected {fast_digest} but got {stamp_fast_digest}"
+                f"{self.name} digest does not match: expected {fast_digest} but got {stamp_fast_digest}"
             )
             return False
 
@@ -99,10 +99,10 @@ class HttpDependency(Component):
             return True
 
         stamp_full_digest = stamp_info.get("full_digest", None)
-        full_digest = tree.get_hex_digest(target_dir, full_hash=True)
+        full_digest = await tree.async_get_hex_digest(target_dir, full_hash=True)
         if full_digest != stamp_full_digest:
             logging.debug(
-                f"full digest does not match: expected {full_digest} but got {stamp_full_digest}"
+                f"{self.name} full digest does not match: expected {full_digest} but got {stamp_full_digest}"
             )
             return False
 

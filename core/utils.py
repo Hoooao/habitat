@@ -743,7 +743,7 @@ def get_patch_id(_input, repo_dir: Path) -> list[str]:
             "Failed to get patch id",
             context={
                 "command": shlex.join(patch_id_command),
-                "working-directory": repo_dir,
+                "working-directory": str(repo_dir),
                 "stderr": stderr.decode(),
             },
         )
@@ -803,7 +803,7 @@ def is_repo_patched(base_commit: str, patch_series: list[str], repo_dir: Path) -
             f"Failed to get git log in {repo_dir}",
             context={
                 "command": shlex.join(log_command),
-                "working-directory": repo_dir,
+                "working-directory": str(repo_dir),
                 "stderr": log_stderr.decode(),
             },
         )
@@ -823,7 +823,7 @@ def is_repo_patched(base_commit: str, patch_series: list[str], repo_dir: Path) -
             cause=e,
             context={
                 "command": f"git rev-parse HEAD~{patch_count}",
-                "working-directory": repo_dir,
+                "working-directory": str(repo_dir),
                 "stderr": e.stderr.decode()
             }
         )

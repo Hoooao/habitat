@@ -152,6 +152,6 @@ class ActionDependency(Component):
             if hasattr(self, "parent") and self.parent:
                 self.parent.produce_event(self.name)
 
-    def up_to_date(self):
+    async def up_to_date(self):
         # action should never be cached
         return False

@@ -6,6 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, ClassVar, Union
 
+from core.utils import to_thread
+
 
 class CheckMode(Enum):
     """
@@ -77,6 +79,10 @@ class HashTree:
 
     def get_hex_digest(self, path: Path, *, full_hash: bool = True) -> str:
         return self.get_digest(path, full_hash=full_hash).hex()
+
+    async def async_get_hex_digest(self, path: Path, *, full_hash: bool = True) -> str:
+        digest = await to_thread(self.get_digest, path, full_hash=full_hash)
+        return digest.hex()
 
     def __symlink_handler(self, path: Path):
         # HASH(b"symlink" || symlink.target)

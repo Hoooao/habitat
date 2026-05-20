@@ -154,7 +154,7 @@ class Component(ABC):
     def on_fetched(self, root_dir, options):
         self.fetched = True
 
-    def up_to_date(self):
+    async def up_to_date(self):
         return self.local_source_stamps.get(self.name) == self.source_stamp
 
     async def fetch(
@@ -177,7 +177,7 @@ class Component(ABC):
         try:
             ctx = observer.dependency_context(dep_name, dep_type)
             # TODO: up_to_date is deprecated, no cache detection here
-            needs_fetch = bool(options.force or not self.up_to_date())
+            needs_fetch = bool(options.force or not await self.up_to_date())
             with ctx:
                 if needs_fetch:
                     if tracer:
