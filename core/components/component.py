@@ -4,7 +4,7 @@
 
 import logging
 import time
-from abc import ABC
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -154,8 +154,9 @@ class Component(ABC):
     def on_fetched(self, root_dir, options):
         self.fetched = True
 
+    @abstractmethod
     async def up_to_date(self):
-        return self.local_source_stamps.get(self.name) == self.source_stamp
+        raise NotImplementedError
 
     async def fetch(
         self, root_dir, options, existing_sources=None, existing_targets=None
@@ -176,7 +177,6 @@ class Component(ABC):
 
         try:
             ctx = observer.dependency_context(dep_name, dep_type)
-            # TODO: up_to_date is deprecated, no cache detection here
             needs_fetch = bool(options.force or not await self.up_to_date())
             with ctx:
                 if needs_fetch:

@@ -17,7 +17,7 @@ from core.exceptions import HabitatException
 from core.fetchers.git_fetcher import GitFetcher
 from core.settings import DEFAULT_CONFIG_FILE_NAME, DEFAULT_DEPS_CACHE_FILE_NAME, ENTRIES_CACHE_TAG_PREFIX
 from core.trace import get_global_tracer
-from core.utils import check_call, eval_deps, find_classes, get_head_commit_id, is_git_sha
+from core.utils import check_call, eval_deps, find_classes, get_head_commit_id, is_repo_unchanged, to_thread
 
 
 def store_entries_cache_to_git(entries_cache: dict, root_dir=None):
@@ -291,7 +291,18 @@ class Solution(DependencyGroup):
         store_entries_cache_to_git(deps_cache, root_dir=root_dir)
 
     async def up_to_date(self):
-        return is_git_sha(getattr(self, "commit", "")) and await super().up_to_date()
+        target_dir = Path(self.target_dir)
+        if not target_dir.exists():
+            return False
+
+        target_commit = getattr(self, "commit", None)
+        if not target_commit:
+            return False
+
+        should_skip = await to_thread(is_repo_unchanged, target_commit, target_dir)
+        if should_skip:
+            logging.info(f"Skip solution repository {self.name} because it is already up to date")
+        return should_skip
 
     async def fetch(
         self, root_dir, options, existing_sources=None, existing_targets=None
