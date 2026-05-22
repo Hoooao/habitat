@@ -21,7 +21,7 @@ DEV_REQUIRES = [
     "isort>=4.0.0,<5.0.0",
     "pytest>=6.0.0,<7.0.0",
     "pytest_httpserver==1.0.12",
-    "pex==2.20.2" if not platform.system() == "Windows" else "pyinstaller==6.12.0",
+    "pex==2.20.4" if not platform.system() == "Windows" else "pyinstaller==6.12.0",
 ] + REQUIRES
 
 here = os.path.abspath(os.path.dirname(__file__))
