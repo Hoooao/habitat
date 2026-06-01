@@ -36,7 +36,7 @@ def test_config_with_branch(tmp_path, default_repo):
         ],
     )
 
-    run_with_custom_argv(main, ["hab", "sync", test_config_repo_path, "--main"])
+    run_with_custom_argv(main, ["hab", "sync", test_config_repo_path, "--main", "--force"])
 
     output = subprocess.check_output(
         ["git", "branch", "--show-current"], cwd=test_config_repo_path

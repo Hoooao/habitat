@@ -31,7 +31,7 @@ class Sync(Command):
             "flags": ["-f", "--force"],
             "help": "Force to override existing files",
             "action": "store_true",
-            "default": True,
+            "default": False,
         },
         {
             "flags": ["--clean"],
