@@ -11,6 +11,7 @@ from typing import Callable, Iterable
 
 from core.components.component import Component
 from core.exceptions import HabitatException
+from core.lifecycle import TaskLifecycleRecorder
 from core.observe import observer
 from core.utils import async_check_output
 
@@ -78,27 +79,39 @@ class ActionDependency(Component):
     ):
         logging.info(f"Run action {self.name}")
         dep_name = getattr(self, "name", "unknown")
+        dep_type = getattr(self, "type", "unknown")
+        lifecycle = TaskLifecycleRecorder(
+            dep_name,
+            dep_type=dep_type,
+            target_dir=getattr(self, "target_dir", ""),
+            required=getattr(self, "require", []),
+        )
+        lifecycle_result = None
         span_start_ns = time.perf_counter_ns()
+        command = None
 
         commands = self.commands
         env = getattr(self, "env", {})
         cwd = getattr(self, "cwd", None)
         cwd = os.path.join(root_dir, cwd) if cwd else root_dir
 
-        if self.function:
-            saved_dir = os.getcwd()
-            os.chdir(cwd)
-            self.function()
-            os.chdir(saved_dir)
-
         ctx = observer.dependency_context(
             getattr(self, "name", "unknown"), getattr(self, "type", "unknown")
         )
 
         try:
+            lifecycle.running()
             action_outputs = []
 
             with ctx:
+                if self.function:
+                    saved_dir = os.getcwd()
+                    try:
+                        os.chdir(cwd)
+                        self.function()
+                    finally:
+                        os.chdir(saved_dir)
+
                 for command in commands:
                     tool = _download_tool_for_command(command)
                     safe_cmd = _safe_command_for_profile(tool, command)
@@ -124,7 +137,7 @@ class ActionDependency(Component):
                             },
                         )
 
-                    logging.info(f"Run command {command} in path {cwd}")
+                    logging.info(f"Ran command {command} in path {cwd}")
                     if self.output:
                         action_outputs.extend(output.decode().splitlines())
 
@@ -135,22 +148,27 @@ class ActionDependency(Component):
                 logging.info("└────")
 
             self.on_fetched(root_dir, options)
+            lifecycle_result = lifecycle.succeeded()
         except subprocess.CalledProcessError as e:
             logging.error(f"command {command} fails, original output:")
             logging.error(f'  --> {e.output.decode().strip()}')
+            lifecycle_result = lifecycle.failed(e)
             raise HabitatException(
-                f"failed to run action {commands} in {self.target_dir}"
+                f"failed to run action {self.name} {commands} in {self.target_dir}"
             ) from e
         except Exception as e:
+            lifecycle_result = lifecycle.failed(e)
             raise HabitatException(
-                f"failed to run action {commands} in {self.target_dir}"
+                f"failed to run action {self.name} {commands} in {self.target_dir}"
             ) from e
         finally:
             duration_ms = int((time.perf_counter_ns() - span_start_ns) / 1_000_000)
             observer.record_dependency_span(duration_ms, dep_name=dep_name)
 
             if hasattr(self, "parent") and self.parent:
-                self.parent.produce_event(self.name)
+                if lifecycle_result is None:
+                    lifecycle_result = lifecycle.cancelled("action_exited_without_result")
+                self.parent.produce_event(self.name, lifecycle_result)
 
     async def up_to_date(self):
         # action should never be cached

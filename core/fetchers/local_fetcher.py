@@ -10,6 +10,7 @@ import stat
 
 from core.exceptions import HabitatException
 from core.fetchers.fetcher import Fetcher
+from core.lifecycle import TaskStatus
 from core.utils import create_symlink
 
 
@@ -36,6 +37,12 @@ class LocalFetcher(Fetcher):
                 f"Reference component {self.reference} has not been fetched yet, waiting on event {event}"
             )
             await event.wait()
+            result = getattr(event, "result", None)
+            if result is None or result.status != TaskStatus.SUCCEEDED:
+                raise HabitatException(
+                    f"reference component {self.reference.name} did not succeed, "
+                    f"skip local fetch for {self.component.name}"
+                )
             logging.debug(
                 f"Got event {event}, start to fetch component {self.component}"
             )
