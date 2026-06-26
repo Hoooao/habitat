@@ -16,6 +16,9 @@ _CACHE_LOCK = Lock()
 _EXCEPTION_DEPS_LOCK = Lock()
 _EXCEPTION_DEPS = {}
 
+_LIFECYCLE_RESULTS_LOCK = Lock()
+_LIFECYCLE_RESULTS = []
+
 _CURRENT_DEPENDENCY = contextvars.ContextVar(
     "core_observe_current_dependency", default=("unknown", "unknown")
 )
@@ -166,6 +169,7 @@ def reset_download_profiling():
     global _BUCKETS
     global _CACHE_ALL, _CACHE_BY_KIND
     global _EXCEPTION_DEPS
+    global _LIFECYCLE_RESULTS
 
     with _BUCKETS_LOCK:
         _BUCKETS = {}
@@ -179,6 +183,25 @@ def reset_download_profiling():
 
     with _EXCEPTION_DEPS_LOCK:
         _EXCEPTION_DEPS = {}
+
+    with _LIFECYCLE_RESULTS_LOCK:
+        _LIFECYCLE_RESULTS = []
+
+
+def record_lifecycle_result(result):
+    if result is None:
+        return
+    if hasattr(result, "to_dict"):
+        item = result.to_dict()
+    else:
+        item = dict(result)
+    with _LIFECYCLE_RESULTS_LOCK:
+        _LIFECYCLE_RESULTS.append(item)
+
+
+def get_lifecycle_results():
+    with _LIFECYCLE_RESULTS_LOCK:
+        return list(_LIFECYCLE_RESULTS)
 
 
 def record_cache_access(kind: str, hit: bool):
@@ -382,8 +405,10 @@ __all__ = [
     "record_download_task",
     "record_dependency_exception",
     "record_dependency_span",
+    "record_lifecycle_result",
     "ensure_dependency_bucket",
     "get_exception_dependencies",
+    "get_lifecycle_results",
     "get_all_download_tasks_sorted",
     "get_top_slowest_download_tasks",
     "get_download_time_by_dependency",

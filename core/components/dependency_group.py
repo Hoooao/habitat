@@ -12,12 +12,19 @@ from core.components.component import Component
 from core.event_manager import ThreadingEventManager
 from core.exceptions import HabitatException
 from core.fetchers.local_fetcher import LocalFetcher
+from core.lifecycle import TaskLifecycleRecorder, TaskStatus
 from core.settings import MAX_DEPENDENCY_WAIT_TIME
 from core.trace import get_global_tracer
 from core.utils import cycle_detection
 
 
 async def fetch_child(child, *args, events=None, **kwargs):
+    lifecycle = TaskLifecycleRecorder(
+        child.name,
+        dep_type=getattr(child, "type", "unknown"),
+        target_dir=getattr(child, "target_dir", ""),
+        required=getattr(child, "require", []),
+    )
     logging.debug(
         f'fetch child {child.name} parent: {child.parent} children: {getattr(child, "children", [])}'
     )
@@ -26,11 +33,25 @@ async def fetch_child(child, *args, events=None, **kwargs):
         try:
             await asyncio.wait_for(e.wait(), MAX_DEPENDENCY_WAIT_TIME)
         except asyncio.TimeoutError:
-            raise HabitatException(
+            exc = HabitatException(
                 f"Timeout of {MAX_DEPENDENCY_WAIT_TIME} "
                 f"seconds expired when waiting on event {e} for {child.name}."
             )
+            result = lifecycle.failed(exc, reason="require_timeout")
+            if hasattr(child, "parent") and child.parent:
+                child.parent.produce_event(child.name, result)
+            raise exc
         logging.debug(f"Got event {e}")
+        required_result = getattr(e, "result", None)
+        if required_result is None or required_result.status != TaskStatus.SUCCEEDED:
+            required_name = getattr(required_result, "name", str(e))
+            result = lifecycle.skipped(
+                reason="upstream_failed",
+                required=[required_name],
+            )
+            if hasattr(child, "parent") and child.parent:
+                child.parent.produce_event(child.name, result)
+            return result
     await child.fetch(*args, **kwargs)
 
 
@@ -71,8 +92,8 @@ class DependencyGroup(Component, ABC):
     def event_manager(self):
         return self._event_manager
 
-    def produce_event(self, event_name):
-        self._event_manager.produce_event(event_name)
+    def produce_event(self, event_name, result):
+        self._event_manager.produce_event(event_name, result)
 
     def add_child(self, child: Component):
         self._children.append(child)
@@ -198,7 +219,49 @@ class DependencyGroup(Component, ABC):
                 if not existing_sources.get(child.source):
                     existing_sources[child.source] = child
 
-            await asyncio.gather(*futures)
+            results = await asyncio.gather(*futures, return_exceptions=True)
+            task_results = self._event_manager.get_results()
+            failed = []
+            skipped = []
+            cancelled = []
+
+            for name, result in task_results.items():
+                if name not in components_to_fetch:
+                    continue
+                if result.status == TaskStatus.FAILED:
+                    failed.append(result)
+                elif result.status == TaskStatus.SKIPPED:
+                    skipped.append(result)
+                elif result.status == TaskStatus.CANCELLED:
+                    cancelled.append(result)
+
+            unreported_errors = [
+                result for result in results if isinstance(result, BaseException)
+            ]
+            if failed or skipped or cancelled or unreported_errors:
+                failed_names = [r.name for r in failed]
+                skipped_names = [r.name for r in skipped]
+                cancelled_names = [r.name for r in cancelled]
+                messages = []
+                if failed_names:
+                    messages.append("failed: " + ", ".join(failed_names))
+                if skipped_names:
+                    messages.append("skipped: " + ", ".join(skipped_names))
+                if cancelled_names:
+                    messages.append("cancelled: " + ", ".join(cancelled_names))
+                if unreported_errors:
+                    messages.append(
+                        "errors: " + ", ".join(type(e).__name__ for e in unreported_errors)
+                    )
+                raise HabitatException(
+                    f"failed to sync dependency group {self.name}; " + "; ".join(messages),
+                    context={
+                        "failed": [r.to_dict() for r in failed],
+                        "skipped": [r.to_dict() for r in skipped],
+                        "cancelled": [r.to_dict() for r in cancelled],
+                        "errors": [str(e) for e in unreported_errors],
+                    },
+                )
         except Exception as e:
             if tracer and async_id:
                 tracer.async_instant(

@@ -7,9 +7,16 @@ import asyncio
 
 class Event(asyncio.Event):
 
-    def __init__(self, name):
+    def __init__(self, name, result=None):
         super(Event, self).__init__()
         self._name = name
+        self.result = result
+        if result is not None:
+            self.set()
+
+    def complete(self, result):
+        self.result = result
+        self.set()
 
     def __str__(self):
         return "event: " + self._name

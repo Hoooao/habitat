@@ -10,6 +10,7 @@ from typing import Any
 
 from core.exceptions import HabitatException
 from core.fetchers.dummy_fetcher import DummyFetcher
+from core.lifecycle import TaskLifecycleRecorder
 from core.observe import observer
 from core.trace import get_global_tracer
 
@@ -173,9 +174,17 @@ class Component(ABC):
         logging.info(f"Sync dependency {self.name} to target dir {self.target_dir}")
         dep_name = getattr(self, "name", "unknown")
         dep_type = getattr(self, "type", "unknown")
+        lifecycle = TaskLifecycleRecorder(
+            dep_name,
+            dep_type=dep_type,
+            target_dir=getattr(self, "target_dir", ""),
+            required=getattr(self, "require", []),
+        )
+        lifecycle_result = None
         span_start_ns = time.perf_counter_ns()
 
         try:
+            lifecycle.running()
             ctx = observer.dependency_context(dep_name, dep_type)
             needs_fetch = bool(options.force or not await self.up_to_date())
             with ctx:
@@ -200,6 +209,7 @@ class Component(ABC):
                         )
 
             self.on_fetched(root_dir, options)
+            lifecycle_result = lifecycle.succeeded()
         except Exception as e:
             if tracer and async_id:
                 tracer.async_instant(
@@ -208,8 +218,9 @@ class Component(ABC):
                     category="component_fetch",
                     args={"error": str(e)},
                 )
+            lifecycle_result = lifecycle.failed(e)
             raise HabitatException(
-                f"failed to fetch dependency {self.source_stamp} to {self.target_dir}"
+                f"failed to fetch dependency {self.name} ({self.source_stamp}) to {self.target_dir}"
             ) from e
         finally:
             try:
@@ -221,7 +232,9 @@ class Component(ABC):
             if tracer and async_id:
                 tracer.async_end(async_id)
             if hasattr(self, "parent") and self.parent:
-                self.parent.produce_event(self.name)
+                if lifecycle_result is None:
+                    lifecycle_result = lifecycle.cancelled("fetch_exited_without_result")
+                self.parent.produce_event(self.name, lifecycle_result)
 
     def __repr__(self):
         return str(self._attr_dict)
