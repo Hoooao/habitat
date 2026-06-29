@@ -9,10 +9,7 @@ from enum import Enum
 from core.observe.observer import record_lifecycle_result
 
 
-class TaskStatus(Enum):
-    PENDING = "pending"
-    WAITING = "waiting"
-    RUNNING = "running"
+class TaskTerminalStatus(Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     SKIPPED = "skipped"
@@ -28,7 +25,7 @@ class TaskResult:
         self,
         name,
         dep_type="unknown",
-        status=TaskStatus.PENDING,
+        status=None,
         start_ts_ms=None,
         end_ts_ms=None,
         reason="",
@@ -37,6 +34,8 @@ class TaskResult:
         required=None,
         target_dir="",
     ):
+        if status is None:
+            raise ValueError("TaskResult status is required")
         self.name = str(name)
         self.dep_type = str(dep_type or "unknown")
         self.status = status
@@ -87,7 +86,7 @@ class TaskLifecycleRecorder:
         )
 
     def succeeded(self):
-        result = self._finish(TaskStatus.SUCCEEDED)
+        result = self._finish(TaskTerminalStatus.SUCCEEDED)
         logging.info(
             "SUCCEEDED dep=%s type=%s durationMs=%s",
             result.name,
@@ -99,7 +98,7 @@ class TaskLifecycleRecorder:
 
     def failed(self, exc=None, reason=""):
         result = self._finish(
-            TaskStatus.FAILED,
+            TaskTerminalStatus.FAILED,
             reason=reason,
             error_type=type(exc).__name__ if exc else "",
             error_message=str(exc) if exc else "",
@@ -116,7 +115,7 @@ class TaskLifecycleRecorder:
 
     def skipped(self, reason="", required=None):
         result = self._finish(
-            TaskStatus.SKIPPED,
+            TaskTerminalStatus.SKIPPED,
             reason=reason,
             required=list(required or self.required),
         )
@@ -131,7 +130,7 @@ class TaskLifecycleRecorder:
         return result
 
     def cancelled(self, reason=""):
-        result = self._finish(TaskStatus.CANCELLED, reason=reason)
+        result = self._finish(TaskTerminalStatus.CANCELLED, reason=reason)
         logging.warning(
             "CANCELLED dep=%s type=%s reason=%s",
             result.name,

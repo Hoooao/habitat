@@ -17,6 +17,8 @@ import coloredlogs
 from core import commands
 from core.__version__ import __version__
 from core.commands.command import Command
+from core.observe.events import close_jsonl, open_jsonl
+from core.observe.summary import render_execution_summary
 from core.settings import DEBUG
 from core.trace import Tracer, set_global_tracer
 from core.utils import find_classes, print_all_exception
@@ -53,6 +55,7 @@ def main():
         default=False,
     )
     parser.add_argument("--trace-output", help="Trace output file path", default=None)
+    parser.add_argument("--log-jsonl", help="Write structured execution events to JSONL", default=None)
     parser.add_argument("-v", "--version", action="version", version=__version__)
 
     logging.info(f"Using habitat version {__version__}")
@@ -70,7 +73,11 @@ def main():
     if not hasattr(args, "command"):
         parser.print_help()
         return 1
-    else:
+
+    if args.log_jsonl:
+        open_jsonl(args.log_jsonl)
+
+    try:
         # Initialize global tracer if tracing is enabled
         if args.trace:
             trace_file = args.trace_output
@@ -128,6 +135,9 @@ def main():
                 else:
                     print_all_exception(e)
                     sys.exit(1)
+    finally:
+        render_execution_summary()
+        close_jsonl()
     return 0
 
 

@@ -10,7 +10,7 @@ import stat
 
 from core.exceptions import HabitatException
 from core.fetchers.fetcher import Fetcher
-from core.lifecycle import TaskStatus
+from core.lifecycle import TaskTerminalStatus
 from core.utils import create_symlink
 
 
@@ -38,7 +38,7 @@ class LocalFetcher(Fetcher):
             )
             await event.wait()
             result = getattr(event, "result", None)
-            if result is None or result.status != TaskStatus.SUCCEEDED:
+            if result is None or result.status != TaskTerminalStatus.SUCCEEDED:
                 raise HabitatException(
                     f"reference component {self.reference.name} did not succeed, "
                     f"skip local fetch for {self.component.name}"

@@ -5,7 +5,7 @@
 import logging
 
 from core.event import Event
-from core.lifecycle import TaskResult, TaskStatus
+from core.lifecycle import TaskResult, TaskTerminalStatus
 
 
 class ThreadingEventManager:
@@ -17,7 +17,7 @@ class ThreadingEventManager:
     def clear(self):
         for k, event_list in self._event_consumers.items():
             for e in event_list:
-                result = TaskResult(k, status=TaskStatus.CANCELLED, reason="event_manager_clear")
+                result = TaskResult(k, status=TaskTerminalStatus.CANCELLED, reason="event_manager_clear")
                 self._event_results[k] = result
                 e.complete(result)
         self._event_consumers.clear()

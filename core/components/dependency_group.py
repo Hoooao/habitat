@@ -12,7 +12,7 @@ from core.components.component import Component
 from core.event_manager import ThreadingEventManager
 from core.exceptions import HabitatException
 from core.fetchers.local_fetcher import LocalFetcher
-from core.lifecycle import TaskLifecycleRecorder, TaskStatus
+from core.lifecycle import TaskLifecycleRecorder, TaskTerminalStatus
 from core.settings import MAX_DEPENDENCY_WAIT_TIME
 from core.trace import get_global_tracer
 from core.utils import cycle_detection
@@ -43,7 +43,7 @@ async def fetch_child(child, *args, events=None, **kwargs):
             raise exc
         logging.debug(f"Got event {e}")
         required_result = getattr(e, "result", None)
-        if required_result is None or required_result.status != TaskStatus.SUCCEEDED:
+        if required_result is None or required_result.status != TaskTerminalStatus.SUCCEEDED:
             required_name = getattr(required_result, "name", str(e))
             result = lifecycle.skipped(
                 reason="upstream_failed",
@@ -228,11 +228,11 @@ class DependencyGroup(Component, ABC):
             for name, result in task_results.items():
                 if name not in components_to_fetch:
                     continue
-                if result.status == TaskStatus.FAILED:
+                if result.status == TaskTerminalStatus.FAILED:
                     failed.append(result)
-                elif result.status == TaskStatus.SKIPPED:
+                elif result.status == TaskTerminalStatus.SKIPPED:
                     skipped.append(result)
-                elif result.status == TaskStatus.CANCELLED:
+                elif result.status == TaskTerminalStatus.CANCELLED:
                     cancelled.append(result)
 
             unreported_errors = [
