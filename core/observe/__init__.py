@@ -1,3 +1,4 @@
+from .events import close_jsonl, get_events, open_jsonl, record_event, reset_events
 from .observer import (dependency_context, get_all_download_tasks_sorted, get_cache_stats, get_current_dependency,
                        get_download_time_stats, get_exception_dependencies, get_lifecycle_results,
                        get_top_slowest_download_tasks, record_cache_access, record_download_task,
@@ -5,6 +6,11 @@ from .observer import (dependency_context, get_all_download_tasks_sorted, get_ca
 
 __all__ = [
     "reset_download_profiling",
+    "reset_events",
+    "record_event",
+    "get_events",
+    "open_jsonl",
+    "close_jsonl",
     "record_cache_access",
     "record_download_task",
     "record_lifecycle_result",

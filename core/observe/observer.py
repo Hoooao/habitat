@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from threading import Lock
 from typing import Any, Dict, Mapping, TypedDict
 
+from core.observe.events import record_event, reset_events
+
 _SEQ_LOCK = Lock()
 _SEQ = 0
 
@@ -187,6 +189,8 @@ def reset_download_profiling():
     with _LIFECYCLE_RESULTS_LOCK:
         _LIFECYCLE_RESULTS = []
 
+    reset_events()
+
 
 def record_lifecycle_result(result):
     if result is None:
@@ -197,6 +201,18 @@ def record_lifecycle_result(result):
         item = dict(result)
     with _LIFECYCLE_RESULTS_LOCK:
         _LIFECYCLE_RESULTS.append(item)
+    record_event(
+        "task.completed",
+        dep=item.get("name"),
+        depType=item.get("depType"),
+        status=item.get("status"),
+        durationMs=item.get("durationMs"),
+        reason=item.get("reason"),
+        errorType=item.get("errorType"),
+        errorMessage=item.get("errorMessage"),
+        required=item.get("required"),
+        targetDir=item.get("targetDir"),
+    )
 
 
 def get_lifecycle_results():
@@ -232,6 +248,12 @@ def record_cache_access(kind: str, hit: bool):
             bucket["hit"] += 1
         else:
             bucket["miss"] += 1
+    record_event(
+        "cache.checked",
+        dep=dep_name,
+        kind=kind,
+        hit=bool(hit),
+    )
 
 
 def _normalize_download_task(duration_ms: int, task: Mapping[str, Any]) -> NormalizedDownloadTask:
@@ -307,6 +329,18 @@ def record_download_task(duration_ms: int, task: dict):
             bucket.bytes_sum += int(normalized_task.get("bytes") or 0)
         except Exception:
             pass
+    record_event(
+        "download.completed",
+        dep=normalized_task.get("dep_name"),
+        kind=normalized_task.get("kind"),
+        durationMs=normalized_task.get("durationMs"),
+        url=normalized_task.get("url"),
+        objectKey=normalized_task.get("objectKey"),
+        range=normalized_task.get("range"),
+        bytes=normalized_task.get("bytes"),
+        tool=normalized_task.get("tool"),
+        command=normalized_task.get("command"),
+    )
 
 
 def get_all_download_tasks_sorted() -> list:

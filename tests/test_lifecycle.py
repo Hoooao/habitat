@@ -10,7 +10,7 @@ from core.components.action_dependency import ActionDependency
 from core.components.dependency_group import DependencyGroup
 from core.exceptions import HabitatException
 from core.fetchers.local_fetcher import LocalFetcher
-from core.lifecycle import TaskResult, TaskStatus
+from core.lifecycle import TaskResult, TaskTerminalStatus
 from core.observe import observer
 
 
@@ -132,7 +132,7 @@ class LifecycleTests(unittest.TestCase):
                 dependency_group.MAX_DEPENDENCY_WAIT_TIME = original_timeout
 
             result = group.event_manager.get_results()["child"]
-            self.assertEqual(result.status, TaskStatus.FAILED)
+            self.assertEqual(result.status, TaskTerminalStatus.FAILED)
             self.assertEqual(result.reason, "require_timeout")
 
     def test_local_fetcher_rejects_failed_reference_result(self):
@@ -150,7 +150,7 @@ class LifecycleTests(unittest.TestCase):
             )
             group.produce_event(
                 "reference",
-                TaskResult("reference", status=TaskStatus.FAILED, reason="test"),
+                TaskResult("reference", status=TaskTerminalStatus.FAILED, reason="test"),
             )
             fetcher = LocalFetcher(component, reference)
 
