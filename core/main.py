@@ -18,6 +18,7 @@ from core import commands
 from core.__version__ import __version__
 from core.commands.command import Command
 from core.observe.events import close_jsonl, open_jsonl
+from core.observe.stat_session import StatSession
 from core.observe.summary import render_execution_summary
 from core.settings import DEBUG
 from core.trace import Tracer, set_global_tracer
@@ -43,6 +44,22 @@ def load_commands(argument_parser: ArgumentParser, command_classes):
             load_commands(parser, c.subcommands)
 
 
+def _command_argv(argv):
+    command_argv = []
+    skip_next = False
+    for token in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--stat-output":
+            skip_next = True
+            continue
+        if token.startswith("--stat-output="):
+            continue
+        command_argv.append(token)
+    return command_argv
+
+
 def main():
     parser = ArgumentParser("hab")
     parser.add_argument(
@@ -56,6 +73,11 @@ def main():
     )
     parser.add_argument("--trace-output", help="Trace output file path", default=None)
     parser.add_argument("--log-jsonl", help="Write structured execution events to JSONL", default=None)
+    parser.add_argument(
+        "--stat-output",
+        help="Write Habitat invocation statistics to JSONL",
+        default=None,
+    )
     parser.add_argument("-v", "--version", action="version", version=__version__)
 
     logging.info(f"Using habitat version {__version__}")
@@ -74,10 +96,26 @@ def main():
         parser.print_help()
         return 1
 
-    if args.log_jsonl:
-        open_jsonl(args.log_jsonl)
+    if args.log_jsonl and args.stat_output:
+        if os.path.abspath(args.log_jsonl) == os.path.abspath(args.stat_output):
+            parser.error("--log-jsonl and --stat-output must use different paths")
+
+    stat_session = None
+    command_exception = None
+    exit_code = 0
+    if args.stat_output:
+        stat_session = StatSession(
+            args.stat_output,
+            _command_argv(sys.argv[1:]),
+            args.command.name,
+            root_dir=getattr(args, "root", None),
+        )
+        stat_session.start()
 
     try:
+        if args.log_jsonl:
+            open_jsonl(args.log_jsonl)
+
         # Initialize global tracer if tracing is enabled
         if args.trace:
             trace_file = args.trace_output
@@ -110,6 +148,8 @@ def main():
                     ):
                         asyncio.run(args.command.run_command(args))
                 except Exception as e:
+                    command_exception = e
+                    exit_code = 1
                     tracer.instant(
                         "hab_main_error", category="main", args={"error": str(e)}
                     )
@@ -130,12 +170,27 @@ def main():
 
                 asyncio.run(args.command.run_command(args))
             except Exception as e:
+                command_exception = e
+                exit_code = 1
                 if DEBUG:
                     raise e
                 else:
                     print_all_exception(e)
                     sys.exit(1)
     finally:
+        if stat_session is not None:
+            active_exception = command_exception or sys.exc_info()[1]
+            stat_exception = command_exception
+            if isinstance(active_exception, SystemExit):
+                code = active_exception.code
+                exit_code = code if isinstance(code, int) else 1
+            elif active_exception is not None:
+                exit_code = 1
+                stat_exception = active_exception
+            try:
+                stat_session.finish(exit_code, stat_exception)
+            except Exception as e:
+                logging.error("Failed to write Habitat statistics: %s", e)
         render_execution_summary()
         close_jsonl()
     return 0

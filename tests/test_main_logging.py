@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -32,3 +33,84 @@ class MainLoggingTests(unittest.TestCase):
                 main()
 
             self.assertTrue(os.path.exists(path))
+
+    def test_stat_output_writes_habitat_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "habitat_session.jsonl")
+            sys.modules["coloredlogs"] = types.SimpleNamespace(install=lambda *args, **kwargs: None)
+            from core.main import main
+
+            with patch(
+                "sys.argv",
+                [
+                    "hab",
+                    "--stat-output",
+                    path,
+                    "sync",
+                    "/path/that/does/not/exist",
+                    "--compatible",
+                ],
+            ):
+                main()
+
+            with open(path, encoding="utf-8") as f:
+                events = [json.loads(line) for line in f]
+
+        self.assertEqual(events[0]["type"], "session_meta")
+        self.assertEqual(events[1]["type"], "invocation")
+        self.assertEqual(events[1]["option"], "sync")
+        self.assertEqual(events[1]["exitCode"], 0)
+
+    def test_stat_output_and_event_log_must_use_different_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "output.jsonl")
+            sys.modules["coloredlogs"] = types.SimpleNamespace(install=lambda *args, **kwargs: None)
+            from core.main import main
+
+            with patch(
+                "sys.argv",
+                [
+                    "hab",
+                    "--log-jsonl",
+                    path,
+                    "--stat-output",
+                    path,
+                    "sync",
+                    "/path/that/does/not/exist",
+                    "--compatible",
+                ],
+            ):
+                with self.assertRaises(SystemExit) as ctx:
+                    main()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_stat_output_records_interrupted_command_as_failed(self):
+        def interrupt(coro):
+            coro.close()
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "habitat_session.jsonl")
+            sys.modules["coloredlogs"] = types.SimpleNamespace(install=lambda *args, **kwargs: None)
+            from core.main import main
+
+            with patch(
+                "sys.argv",
+                [
+                    "hab",
+                    "--stat-output",
+                    path,
+                    "sync",
+                    "/path/that/does/not/exist",
+                    "--compatible",
+                ],
+            ), patch("core.main.asyncio.run", side_effect=interrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    main()
+
+            with open(path, encoding="utf-8") as f:
+                events = [json.loads(line) for line in f]
+
+        self.assertEqual(events[1]["type"], "invocation")
+        self.assertEqual(events[1]["exitCode"], 1)
