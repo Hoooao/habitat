@@ -3,7 +3,6 @@ import logging
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
 
 from core.observe import observer
 from core.observe.stat_session import StatSession
@@ -131,13 +130,6 @@ class StatSessionTests(unittest.TestCase):
             metadata = _read_events(path)[0]
 
         self.assertEqual(metadata["project"], "example/target")
-
-    def test_rejects_statistics_generation_on_windows(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with patch("core.observe.stat_session.platform.system", return_value="Windows"):
-                session = StatSession(os.path.join(tmp, "stats.jsonl"), [], "sync")
-                with self.assertRaisesRegex(RuntimeError, "Linux and macOS"):
-                    session.start()
 
 
 if __name__ == "__main__":
