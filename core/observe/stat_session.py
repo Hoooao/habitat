@@ -134,8 +134,6 @@ class StatSession:
         self._warning_handler = _WarningCaptureHandler()
 
     def start(self):
-        if platform.system() not in ("Linux", "Darwin"):
-            raise RuntimeError("statistics generation currently supports Linux and macOS only")
         if self._started:
             return
 
